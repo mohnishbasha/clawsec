@@ -1,0 +1,47 @@
+service:
+  name: clawsec
+  version: "1.0.0"
+  environment: production
+
+exporters:
+  otlp:
+    endpoint: "http://otel-collector:4317"
+    protocol: grpc
+    insecure: true
+  prometheus:
+    port: 9090
+
+traces:
+  sampler: always_on
+  batch_processor:
+    max_export_batch_size: 512
+    schedule_delay_millis: 5000
+
+metrics:
+  export_interval_millis: 10000
+  instruments:
+    - name: llm_requests_total
+      type: counter
+      description: "Total number of LLM requests"
+      labels:
+        - role
+    - name: policy_violations_total
+      type: counter
+      description: "Total policy violations detected"
+      labels:
+        - type
+        - role
+    - name: rbac_denials_total
+      type: counter
+      description: "Total RBAC access denials"
+      labels:
+        - role
+    - name: llm_request_duration_seconds
+      type: histogram
+      description: "LLM request duration in seconds"
+      buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0]
+    - name: audit_events_total
+      type: counter
+      description: "Total audit events logged"
+      labels:
+        - event_type

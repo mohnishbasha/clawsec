@@ -1,0 +1,47 @@
+roles:
+  agent:
+    description: "Standard LLM agent user. Can submit queries and read outputs."
+    permissions:
+      - query:submit
+      - output:read
+    restrictions:
+      - no_system_prompt_override
+      - rate_limit: 100/hour
+
+  developer:
+    description: "Developer with additional policy visibility and model configuration."
+    permissions:
+      - query:submit
+      - output:read
+      - policy:read
+      - model:configure
+    restrictions:
+      - rate_limit: 500/hour
+
+  auditor:
+    description: "Read-only audit and observability access. Cannot submit queries."
+    permissions:
+      - audit:read
+      - policy:read
+      - output:read
+      - metrics:read
+    restrictions:
+      - no_query_submission
+
+  administrator:
+    description: "Full system access. Tightly controlled, MFA required."
+    permissions:
+      - query:submit
+      - output:read
+      - policy:read
+      - policy:manage
+      - model:configure
+      - audit:read
+      - audit:delete
+      - rbac:manage
+      - system:admin
+      - metrics:read
+    restrictions:
+      - mfa_required
+      - session_timeout: 60min
+      - audit_all_actions: true

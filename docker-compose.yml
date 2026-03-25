@@ -1,0 +1,209 @@
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    ports:
+      - "80:80"           # HTTP entrypoint (public)
+      - "443:443"         # HTTPS entrypoint (public) — configure TLS certs for production
+      - "8080:8080"       # Traefik dashboard — restrict to internal network in production
+    volumes:
+      - ./config/traefik.yaml:/etc/traefik/traefik.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - clawsec-net
+    restart: unless-stopped
+
+  clawsec:
+    build: .
+    container_name: clawsec-agent
+    expose:
+      - "8000"    # internal only — Traefik routes to this port
+      - "9090"    # Prometheus metrics scrape (internal)
+    environment:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=sqlite:///./data/clawsec_audit.db
+      - OTLP_ENDPOINT=http://otel-collector:4317
+      # ---- LLM provider (pick one) ----
+      # Option A — OpenAI / any OpenAI-compatible API:
+      #   LLM_API_URL=https://api.openai.com/v1/chat/completions
+      #   LLM_API_KEY=sk-...
+      #   LLM_MODEL=gpt-4o
+      # Option B — Groq (free tier available):
+      #   LLM_API_URL=https://api.groq.com/openai/v1/chat/completions
+      #   LLM_API_KEY=gsk_...
+      #   LLM_MODEL=llama3-8b-8192
+      # Option C — Ollama (local, free, no key needed):
+      #   LLM_API_URL=http://ollama:11434/v1/chat/completions
+      #   LLM_API_KEY=ollama
+      #   LLM_MODEL=llama3.2
+      #   Then run: docker exec ollama ollama pull llama3.2
+      # Leave LLM_API_URL blank to use mock mode (safe canned responses).
+      - LLM_API_URL=${LLM_API_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - TRUSTED_PROXIES=traefik   # trust X-Forwarded-For from Traefik container
+      # Outbound proxy for LLM API calls (optional)
+      - LLM_HTTP_PROXY=${LLM_HTTP_PROXY:-}
+      - LLM_HTTPS_PROXY=${LLM_HTTPS_PROXY:-}
+      - LLM_NO_PROXY=${LLM_NO_PROXY:-}
+    volumes:
+      - audit-data:/app/data
+    networks:
+      - clawsec-net
+    depends_on:
+      - otel-collector
+      - traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    labels:
+      - "traefik.enable=true"
+      # ---- Router ----
+      - "traefik.http.routers.clawsec.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.clawsec.entrypoints=web"
+      - "traefik.http.routers.clawsec.middlewares=clawsec-ratelimit,clawsec-headers,clawsec-retry"
+      - "traefik.http.services.clawsec.loadbalancer.server.port=8000"
+      # ---- Rate limiting: 100 req/min per IP ----
+      - "traefik.http.middlewares.clawsec-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.clawsec-ratelimit.ratelimit.burst=20"
+      - "traefik.http.middlewares.clawsec-ratelimit.ratelimit.period=1m"
+      - "traefik.http.middlewares.clawsec-ratelimit.ratelimit.sourcecriterion.ipstrategy.depth=1"
+      # ---- Security headers ----
+      - "traefik.http.middlewares.clawsec-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.clawsec-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.clawsec-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.clawsec-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.clawsec-headers.headers.customResponseHeaders.X-Powered-By="
+      - "traefik.http.middlewares.clawsec-headers.headers.customResponseHeaders.Server="
+      # ---- Retry on transient errors ----
+      - "traefik.http.middlewares.clawsec-retry.retry.attempts=3"
+      - "traefik.http.middlewares.clawsec-retry.retry.initialInterval=100ms"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./config/otel_collector.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    networks:
+      - clawsec-net
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./config/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9091:9090"
+    networks:
+      - clawsec-net
+    restart: unless-stopped
+    depends_on:
+      - victoriametrics
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.103.0
+    container_name: victoriametrics
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--retentionPeriod=3"           # 3 months retention
+      - "--httpListenAddr=:8428"
+    ports:
+      - "8428:8428"
+    volumes:
+      - vm-data:/victoria-metrics-data
+    networks:
+      - clawsec-net
+    restart: unless-stopped
+
+  victorialogs:
+    image: victoriametrics/victoria-logs:latest
+    container_name: victorialogs
+    command:
+      - "--storageDataPath=/vlogs"
+      - "--httpListenAddr=:9428"
+      - "--retentionPeriod=4w"          # 4 weeks log retention
+    ports:
+      - "9428:9428"
+    volumes:
+      - vl-data:/vlogs
+    networks:
+      - clawsec-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana_datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    networks:
+      - clawsec-net
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - victoriametrics
+      - victorialogs
+
+  # ── Ollama (optional local LLM — no API key required) ──────────────────────
+  # To use: uncomment this service, then run:
+  #   docker compose up -d ollama
+  #   docker exec ollama ollama pull llama3.2
+  # Set in .env:  LLM_API_URL=http://ollama:11434/v1/chat/completions
+  #               LLM_API_KEY=ollama
+  #               LLM_MODEL=llama3.2
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   networks:
+  #     - clawsec-net
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]   # remove if no GPU
+
+volumes:
+  audit-data:
+  prometheus-data:
+  vm-data:
+  vl-data:
+  grafana-data:
+  # ollama-data:    # uncomment when using Ollama
+
+networks:
+  clawsec-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

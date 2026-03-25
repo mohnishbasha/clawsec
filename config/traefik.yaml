@@ -1,0 +1,44 @@
+# Traefik v3 static configuration
+# Acts as the single entry point in front of ClawSec.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+api:
+  dashboard: true
+  insecure: true          # Dashboard on :8080 — restrict to internal network in production
+
+entryPoints:
+  web:
+    address: ":80"
+    # Redirect all HTTP to HTTPS in production — uncomment below:
+    # http:
+    #   redirections:
+    #     entryPoint:
+    #       to: websecure
+    #       scheme: https
+
+  websecure:
+    address: ":443"
+    # http:
+    #   tls: {}             # Enable TLS — configure certs via certificatesResolvers
+
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  fields:
+    headers:
+      defaultMode: keep
+      names:
+        Authorization: redact    # Never log JWT tokens
+        Cookie: drop
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: clawsec-net

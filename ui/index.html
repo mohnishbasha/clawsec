@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawSec — Secure LLM Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: #f8fafc;
+    }
+
+    /* Subtle gradient background */
+    .page-bg {
+      background: linear-gradient(135deg, #f0f4ff 0%, #fafafa 40%, #f0faf5 100%);
+      min-height: 100vh;
+    }
+
+    /* Glassmorphism card */
+    .glass {
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.9);
+      box-shadow: 0 2px 24px rgba(99,102,241,0.06), 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e8edf5;
+      box-shadow: 0 1px 12px rgba(99,102,241,0.06), 0 1px 3px rgba(0,0,0,0.04);
+      border-radius: 16px;
+    }
+
+    /* Nav */
+    .nav-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px; border-radius: 10px;
+      font-size: 13.5px; font-weight: 500;
+      color: #64748b; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      text-align: left; width: 100%; border: none; background: none;
+    }
+    .nav-item:hover:not(:disabled) { background: #f0f4ff; color: #4f46e5; }
+    .nav-item.active { background: linear-gradient(135deg,#ede9fe,#e0e7ff); color: #4338ca; font-weight: 600; }
+    .nav-item:disabled { color: #c1c9d4; cursor: not-allowed; }
+
+    /* Tabs */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeUp 0.2s ease-out; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* Inputs */
+    .inp {
+      width: 100%; padding: 10px 14px; font-size: 14px;
+      border: 1.5px solid #e2e8f0; border-radius: 10px;
+      background: #fafbff; color: #1e293b;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+    .inp:focus { border-color: #818cf8; box-shadow: 0 0 0 3px rgba(129,140,248,0.15); }
+    .inp::placeholder { color: #a8b4c4; }
+
+    select.inp { cursor: pointer; }
+    textarea.inp { resize: none; font-family: inherit; line-height: 1.6; }
+
+    /* Buttons */
+    .btn-primary {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 22px; font-size: 14px; font-weight: 600;
+      color: white; border-radius: 10px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      box-shadow: 0 2px 8px rgba(99,102,241,0.30);
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99,102,241,0.38); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 18px; font-size: 14px; font-weight: 500;
+      color: #64748b; background: #f1f5f9; border: 1.5px solid #e2e8f0;
+      border-radius: 10px; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-ghost:hover { background: #e8edf5; color: #374151; }
+
+    .btn-sm {
+      padding: 6px 14px; font-size: 12.5px; border-radius: 8px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; padding: 2px 10px;
+      border-radius: 20px; font-size: 11.5px; font-weight: 600;
+    }
+    .badge-green  { background: #dcfce7; color: #16a34a; }
+    .badge-amber  { background: #fef3c7; color: #b45309; }
+    .badge-red    { background: #fee2e2; color: #dc2626; }
+    .badge-violet { background: #ede9fe; color: #7c3aed; }
+    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+    .badge-slate  { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+    /* Perm tag */
+    .perm-tag {
+      display: inline-block; padding: 3px 10px;
+      background: #f0f4ff; border: 1px solid #c7d2fe;
+      border-radius: 6px; font-size: 11.5px; font-family: monospace;
+      color: #4338ca; font-weight: 500;
+    }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.75s linear infinite; display: inline-block; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* Table */
+    .audit-table th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
+    .audit-table td { font-size: 12.5px; color: #475569; }
+    .audit-table tr:hover td { background: #f8faff; }
+
+    /* Toast */
+    .toast { position: fixed; top: 68px; right: 20px; z-index: 999; }
+    .toast-inner {
+      padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+      animation: fadeUp 0.2s ease-out;
+    }
+
+    /* Stat card */
+    .stat-card {
+      padding: 18px 20px; border-radius: 14px;
+    }
+
+    /* Response block */
+    .response-text {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 13px; line-height: 1.7; color: #1e293b;
+      white-space: pre-wrap; word-break: break-word;
+    }
+
+    /* Section label */
+    .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 8px; }
+  </style>
+</head>
+<body class="page-bg">
+
+  <!-- ── Mock mode banner ── -->
+  <div id="mock-banner" class="hidden w-full px-5 py-2.5 text-sm font-medium flex items-center justify-between gap-4"
+       style="background:#fffbeb; border-bottom:1.5px solid #fde68a; color:#92400e;">
+    <div class="flex items-center gap-2">
+      <span>⚠</span>
+      <span><strong>Mock mode active</strong> — responses are canned. Set <code class="bg-amber-100 px-1.5 py-0.5 rounded text-xs font-mono">LLM_API_URL</code> to enable a real LLM.</span>
+    </div>
+    <div class="flex items-center gap-3 shrink-0 text-xs">
+      <a href="#" onclick="showProviderHelp()" class="underline hover:no-underline">How to configure →</a>
+      <button onclick="document.getElementById('mock-banner').classList.add('hidden')" class="text-amber-500 hover:text-amber-700 font-bold text-base leading-none">✕</button>
+    </div>
+  </div>
+
+  <!-- ── Provider help modal ── -->
+  <div id="provider-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.25); backdrop-filter:blur(4px);">
+    <div class="card p-7 w-full max-w-lg relative" style="animation:fadeUp 0.2s ease-out; max-height:90vh; overflow-y:auto;">
+      <button onclick="document.getElementById('provider-modal').classList.add('hidden')"
+              class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl leading-none font-bold">✕</button>
+      <h2 class="text-lg font-bold text-slate-800 mb-1">Enable a real LLM</h2>
+      <p class="text-sm text-slate-500 mb-5">Set these environment variables then restart the server.</p>
+
+      <div class="space-y-4">
+        <div class="rounded-xl p-4" style="background:#f0f4ff; border:1.5px solid #c7d2fe;">
+          <p class="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">Option A — OpenAI</p>
+          <pre class="text-xs font-mono text-indigo-900 leading-relaxed">LLM_API_URL=https://api.openai.com/v1/chat/completions
+LLM_API_KEY=sk-...
+LLM_MODEL=gpt-4o</pre>
+        </div>
+        <div class="rounded-xl p-4" style="background:#f0fdf4; border:1.5px solid #bbf7d0;">
+          <p class="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">Option B — Groq (free tier)</p>
+          <pre class="text-xs font-mono text-green-900 leading-relaxed">LLM_API_URL=https://api.groq.com/openai/v1/chat/completions
+LLM_API_KEY=gsk_...
+LLM_MODEL=llama3-8b-8192</pre>
+          <a href="https://console.groq.com" target="_blank" class="text-xs text-green-600 underline mt-1 inline-block">Get a free Groq API key →</a>
+        </div>
+        <div class="rounded-xl p-4" style="background:#faf5ff; border:1.5px solid #ddd6fe;">
+          <p class="text-xs font-bold text-purple-700 uppercase tracking-wide mb-2">Option C — Ollama (local, no key)</p>
+          <pre class="text-xs font-mono text-purple-900 leading-relaxed">LLM_API_URL=http://localhost:11434/v1/chat/completions
+LLM_API_KEY=ollama
+LLM_MODEL=llama3.2</pre>
+          <p class="text-xs text-purple-600 mt-1">Then run: <code class="bg-purple-100 px-1 rounded">ollama pull llama3.2</code></p>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 mt-5">After setting vars, restart: <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-600">python -m uvicorn src.main:app --reload</code></p>
+    </div>
+  </div>
+
+  <!-- ── Navbar ── -->
+  <nav class="glass sticky top-0 z-20 px-6 py-3.5 flex items-center justify-between border-b border-white/80"
+       style="border-radius:0; backdrop-filter:blur(16px);">
+    <div class="flex items-center gap-3">
+      <div style="background:linear-gradient(135deg,#6366f1,#818cf8); border-radius:10px; width:32px; height:32px;"
+           class="flex items-center justify-center text-white font-bold text-xs shadow-sm select-none">CS</div>
+      <div>
+        <span class="font-semibold text-slate-800 text-sm tracking-tight">ClawSec</span>
+        <span class="hidden sm:inline text-slate-400 text-xs ml-2">Secure LLM Agent</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="status-dot" class="w-2 h-2 rounded-full transition-colors duration-500" style="background:#cbd5e1"></span>
+      <span id="status-text" class="text-xs font-medium text-slate-400">Not connected</span>
+    </div>
+  </nav>
+
+  <div class="flex" style="height: calc(100vh - 57px)">
+
+    <!-- ── Sidebar ── -->
+    <aside class="w-52 shrink-0 flex flex-col py-4 px-2.5"
+           style="background:rgba(255,255,255,0.60); backdrop-filter:blur(12px); border-right:1px solid #e8edf5;">
+      <div class="flex flex-col gap-0.5">
+        <button onclick="switchTab('connect')" id="tab-connect" class="nav-item active">
+          <span>🔑</span> Connect
+        </button>
+        <button onclick="switchTab('query')" id="tab-query" class="nav-item" disabled>
+          <span>💬</span> Query
+        </button>
+        <button onclick="switchTab('audit')" id="tab-audit" class="nav-item" disabled>
+          <span>📋</span> Audit Log
+        </button>
+        <button onclick="switchTab('policy')" id="tab-policy" class="nav-item" disabled>
+          <span>🛡️</span> Policy
+        </button>
+        <button onclick="switchTab('roles')" id="tab-roles" class="nav-item" disabled>
+          <span>👥</span> RBAC Roles
+        </button>
+        <button onclick="switchTab('config')" id="tab-config" class="nav-item" disabled>
+          <span>⚙️</span> Config
+        </button>
+      </div>
+
+      <!-- User card -->
+      <div id="sidebar-user" class="hidden mt-auto rounded-xl p-3.5"
+           style="background:linear-gradient(135deg,#f0f4ff,#faf5ff); border:1px solid #e0e7ff;">
+        <p class="text-xs text-slate-400 mb-0.5">Signed in as</p>
+        <p class="text-sm font-semibold text-slate-700 truncate" id="sidebar-userid"></p>
+        <span class="text-xs font-mono font-medium text-indigo-500" id="sidebar-role"></span>
+      </div>
+    </aside>
+
+    <!-- ── Main ── -->
+    <main class="flex-1 overflow-y-auto p-6 md:p-8">
+
+      <!-- Toast -->
+      <div id="toast" class="toast hidden">
+        <div id="toast-inner" class="toast-inner"></div>
+      </div>
+
+      <!-- ── Connect ── -->
+      <div id="content-connect" class="tab-content active" style="max-width:440px">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-800 mb-1">Connect</h1>
+          <p class="text-sm text-slate-500">Authenticate with the API to unlock features.</p>
+        </div>
+
+        <div class="card p-6 space-y-5">
+          <div>
+            <label class="section-label block">User ID</label>
+            <input id="inp-userid" type="text" value="alice" placeholder="e.g. alice" class="inp">
+          </div>
+          <div>
+            <label class="section-label block">Role</label>
+            <select id="inp-role" class="inp">
+              <option value="agent">agent — query only</option>
+              <option value="developer">developer — query + policy</option>
+              <option value="auditor">auditor — audit + policy read</option>
+              <option value="administrator">administrator — full access</option>
+            </select>
+          </div>
+          <button onclick="connect()" id="btn-connect" class="btn-primary w-full">
+            Get Token
+          </button>
+        </div>
+
+        <!-- Permissions card -->
+        <div id="perms-card" class="hidden mt-4 card p-5" style="animation:fadeUp 0.25s ease-out">
+          <div class="flex items-center justify-between mb-3">
+            <span class="section-label">Permissions granted</span>
+            <span id="perms-role-badge" class="badge badge-violet"></span>
+          </div>
+          <div id="perms-list" class="flex flex-wrap gap-1.5 mb-4"></div>
+          <p class="text-xs text-slate-400 pt-3 border-t border-slate-100">
+            Token expires in 1 hour · User: <span id="perms-userid" class="text-slate-500 font-medium"></span>
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Query ── -->
+      <div id="content-query" class="tab-content" style="max-width:680px">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-800 mb-1">Query</h1>
+          <p class="text-sm text-slate-500">
+            Submit a prompt to the LLM. PII is redacted before it reaches the model.
+            <kbd class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200 ml-1">⌘ Enter</kbd> to send.
+          </p>
+        </div>
+
+        <div class="card p-6 space-y-5">
+          <div>
+            <label class="section-label block">Prompt</label>
+            <textarea id="inp-prompt" rows="5" placeholder="What would you like to ask?" class="inp font-mono"></textarea>
+          </div>
+          <details class="group">
+            <summary class="text-xs font-medium text-slate-400 hover:text-indigo-500 cursor-pointer select-none transition-colors">
+              System prompt <span class="text-slate-300">(optional)</span>
+            </summary>
+            <div class="mt-2">
+              <textarea id="inp-systemprompt" rows="2" placeholder="Optional system instructions..." class="inp font-mono"></textarea>
+            </div>
+          </details>
+          <div class="flex gap-2.5 pt-1">
+            <button onclick="submitQuery()" id="btn-query" class="btn-primary">Send</button>
+            <button onclick="clearQuery()" class="btn-ghost">Clear</button>
+          </div>
+        </div>
+
+        <!-- Response -->
+        <div id="resp-card" class="hidden mt-4 card overflow-hidden" style="animation:fadeUp 0.2s ease-out">
+          <div class="px-6 py-3.5 flex items-center justify-between border-b border-slate-100">
+            <span class="section-label mb-0">Response</span>
+            <div id="resp-badges" class="flex items-center gap-2"></div>
+          </div>
+          <div class="p-6">
+            <p id="resp-text" class="response-text"></p>
+          </div>
+          <div id="resp-meta" class="px-6 py-3.5 border-t border-slate-100 text-xs text-slate-400 font-mono space-y-1"
+               style="background:#fafbff; border-radius:0 0 16px 16px;"></div>
+        </div>
+
+        <!-- Error / blocked -->
+        <div id="resp-error" class="hidden mt-4 rounded-2xl overflow-hidden" style="background:#fff5f5; border:1.5px solid #fecaca; animation:fadeUp 0.2s ease-out">
+          <div class="px-6 py-3.5 flex items-center gap-2 border-b" style="border-color:#fecaca; background:#fff1f2;">
+            <span class="text-sm font-semibold text-red-600">⚠ Request Blocked</span>
+          </div>
+          <div class="p-6">
+            <p id="resp-error-text" class="response-text text-red-700"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Audit Log ── -->
+      <div id="content-audit" class="tab-content">
+        <div class="flex items-start justify-between mb-6 gap-4">
+          <div>
+            <h1 class="text-xl font-bold text-slate-800 mb-1">Audit Log</h1>
+            <p class="text-sm text-slate-500">All security events, reverse-chronological.</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <select id="audit-filter" class="inp btn-sm" style="width:auto">
+              <option value="">All events</option>
+              <option value="llm_query">llm_query</option>
+              <option value="policy_violation">policy_violation</option>
+              <option value="rbac_denial">rbac_denial</option>
+              <option value="pii_redacted">pii_redacted</option>
+              <option value="token_issued">token_issued</option>
+              <option value="llm_error">llm_error</option>
+              <option value="config_updated">config_updated</option>
+            </select>
+            <button onclick="loadAudit()" class="btn-primary btn-sm">Refresh</button>
+          </div>
+        </div>
+
+        <div class="card overflow-hidden">
+          <div id="audit-state" class="py-12 text-center text-sm text-slate-400">Loading…</div>
+          <div class="overflow-x-auto">
+            <table id="audit-table" class="hidden w-full audit-table">
+              <thead>
+                <tr style="border-bottom:1.5px solid #f1f5f9; background:#fafbff;">
+                  <th class="px-5 py-3 text-left">Timestamp</th>
+                  <th class="px-5 py-3 text-left">Event</th>
+                  <th class="px-5 py-3 text-left">User</th>
+                  <th class="px-5 py-3 text-left">Role</th>
+                  <th class="px-5 py-3 text-left">Action</th>
+                  <th class="px-5 py-3 text-left">Outcome</th>
+                  <th class="px-5 py-3 text-left">Violations</th>
+                </tr>
+              </thead>
+              <tbody id="audit-body" class="divide-y divide-slate-50"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Policy ── -->
+      <div id="content-policy" class="tab-content" style="max-width:580px">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-800 mb-1">Policy</h1>
+          <p class="text-sm text-slate-500">Active security and PII filtering configuration.</p>
+        </div>
+        <div id="policy-state" class="card py-12 text-center text-sm text-slate-400">Loading…</div>
+        <div id="policy-content" class="hidden space-y-4"></div>
+      </div>
+
+      <!-- ── RBAC Roles ── -->
+      <div id="content-roles" class="tab-content" style="max-width:580px">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-800 mb-1">RBAC Roles</h1>
+          <p class="text-sm text-slate-500">Role → permission matrix enforced on every request.</p>
+        </div>
+        <div id="roles-state" class="card py-12 text-center text-sm text-slate-400">Loading…</div>
+        <div id="roles-content" class="hidden space-y-3"></div>
+      </div>
+
+      <!-- ── Config ── -->
+      <div id="content-config" class="tab-content" style="max-width:600px">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-800 mb-1">Configuration</h1>
+          <p class="text-sm text-slate-500">Runtime LLM and policy settings. Changes take effect immediately — no restart needed.</p>
+        </div>
+
+        <div id="config-state" class="card py-12 text-center text-sm text-slate-400">Loading…</div>
+
+        <div id="config-content" class="hidden space-y-5">
+
+          <!-- LLM Provider -->
+          <div class="card p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="font-semibold text-slate-700 text-sm">LLM Provider</h2>
+              <span id="cfg-mode-badge" class="badge badge-amber">mock</span>
+            </div>
+
+            <div>
+              <label class="section-label block">Provider preset</label>
+              <select id="cfg-provider" class="inp" onchange="applyPreset()">
+                <option value="openai">OpenAI</option>
+                <option value="groq">Groq</option>
+                <option value="ollama">Ollama (local)</option>
+                <option value="anthropic-proxy">Anthropic via LiteLLM proxy</option>
+                <option value="custom" selected>Custom</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="section-label block">API URL</label>
+              <input id="cfg-api-url" type="url" placeholder="https://api.openai.com/v1/chat/completions" class="inp">
+            </div>
+
+            <div>
+              <label class="section-label block">API Key</label>
+              <div class="relative">
+                <input id="cfg-api-key" type="password" placeholder="sk-… (leave blank to keep current)" class="inp pr-10">
+                <button onclick="toggleApiKeyVis()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm select-none" title="Show/hide">👁</button>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Leave blank to keep the saved key.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="section-label block">Model</label>
+                <input id="cfg-model" type="text" placeholder="gpt-4o" class="inp">
+              </div>
+              <div>
+                <label class="section-label block">Max tokens</label>
+                <input id="cfg-max-tokens" type="number" placeholder="2048" min="64" max="32768" class="inp">
+              </div>
+            </div>
+
+            <div>
+              <label class="section-label block">Timeout (seconds)</label>
+              <input id="cfg-timeout" type="number" placeholder="30" min="5" max="300" class="inp" style="max-width:120px">
+            </div>
+
+            <div class="flex gap-2.5 pt-1">
+              <button onclick="saveLLMConfig()" id="btn-save-llm" class="btn-primary">Save</button>
+              <button onclick="testConnection()" id="btn-test-llm" class="btn-ghost">
+                Test connection
+              </button>
+            </div>
+
+            <!-- Test result -->
+            <div id="test-result" class="hidden rounded-xl p-3.5 text-sm font-mono"></div>
+          </div>
+
+          <!-- Policy toggles -->
+          <div class="card p-6 space-y-4">
+            <h2 class="font-semibold text-slate-700 text-sm">Policy Settings</h2>
+            <div class="space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input id="cfg-pii-input" type="checkbox" checked class="w-4 h-4 accent-indigo-500">
+                <span class="text-sm text-slate-600">PII filter — input <span class="text-slate-400 text-xs">(redact before LLM sees prompt)</span></span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input id="cfg-pii-output" type="checkbox" checked class="w-4 h-4 accent-indigo-500">
+                <span class="text-sm text-slate-600">PII filter — output <span class="text-slate-400 text-xs">(redact from LLM response)</span></span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input id="cfg-block-injection" type="checkbox" checked class="w-4 h-4 accent-indigo-500">
+                <span class="text-sm text-slate-600">Block prompt injection</span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input id="cfg-block-secrets" type="checkbox" checked class="w-4 h-4 accent-indigo-500">
+                <span class="text-sm text-slate-600">Block secret exfiltration</span>
+              </label>
+            </div>
+            <button onclick="savePolicyConfig()" class="btn-primary btn-sm">Save policy</button>
+          </div>
+
+          <!-- Server info (read-only) -->
+          <div class="card p-6 space-y-3">
+            <h2 class="font-semibold text-slate-700 text-sm">Server Info <span class="text-slate-400 font-normal text-xs">(read-only)</span></h2>
+            <div id="cfg-server-info" class="space-y-2"></div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+const S = { token: null, userId: '', role: '', permissions: [] };
+let toastTimer = null;
+
+// ---------------------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------------------
+function toast(msg, type = 'info') {
+  const wrap  = document.getElementById('toast');
+  const inner = document.getElementById('toast-inner');
+  const styles = {
+    success: 'background:#f0fdf4; color:#15803d; border:1.5px solid #bbf7d0;',
+    error:   'background:#fff1f2; color:#dc2626; border:1.5px solid #fecaca;',
+    info:    'background:#f0f4ff; color:#4338ca; border:1.5px solid #c7d2fe;',
+  };
+  inner.style.cssText = styles[type] || styles.info;
+  inner.textContent = msg;
+  wrap.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => wrap.classList.add('hidden'), 3500);
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`content-${name}`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+  if (name === 'audit')  loadAudit();
+  if (name === 'policy') loadPolicy();
+  if (name === 'roles')  loadRoles();
+  if (name === 'config') loadConfig();
+}
+
+function enableTab(id) {
+  const btn = document.getElementById(`tab-${id}`);
+  btn.disabled = false;
+}
+
+// ---------------------------------------------------------------------------
+// Connect
+// ---------------------------------------------------------------------------
+async function connect() {
+  const userId = document.getElementById('inp-userid').value.trim();
+  const role   = document.getElementById('inp-role').value;
+  if (!userId) { toast('User ID is required', 'error'); return; }
+
+  const btn = document.getElementById('btn-connect');
+  btn.innerHTML = '<span class="spin" style="border:2px solid white;border-top-color:transparent;border-radius:50%;width:14px;height:14px;display:inline-block;"></span> Connecting…';
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch('/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, role }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Token request failed');
+
+    S.token = data.token; S.userId = userId; S.role = data.role; S.permissions = data.permissions;
+
+    // Status bar
+    document.getElementById('status-dot').style.background = '#4ade80';
+    document.getElementById('status-text').textContent = `${userId} · ${role}`;
+    document.getElementById('status-text').style.color = '#16a34a';
+
+    // Sidebar
+    document.getElementById('sidebar-userid').textContent = userId;
+    document.getElementById('sidebar-role').textContent   = role;
+    document.getElementById('sidebar-user').classList.remove('hidden');
+
+    // Perms card
+    document.getElementById('perms-role-badge').textContent = role;
+    document.getElementById('perms-userid').textContent     = userId;
+    const list = document.getElementById('perms-list');
+    list.innerHTML = '';
+    data.permissions.forEach(p => {
+      const t = document.createElement('span');
+      t.className = 'perm-tag'; t.textContent = p;
+      list.appendChild(t);
+    });
+    document.getElementById('perms-card').classList.remove('hidden');
+
+    // Enable tabs
+    if (S.permissions.includes('query:submit')) enableTab('query');
+    if (S.permissions.includes('audit:read'))   enableTab('audit');
+    if (S.permissions.includes('policy:read'))  enableTab('policy');
+    if (S.permissions.includes('rbac:manage'))  enableTab('roles');
+    if (S.permissions.includes('system:admin')) enableTab('config');
+
+    toast(`Connected as ${userId} (${role})`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = 'Get Token';
+    btn.disabled  = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Query
+// ---------------------------------------------------------------------------
+async function submitQuery() {
+  const prompt = document.getElementById('inp-prompt').value.trim();
+  const sys    = document.getElementById('inp-systemprompt').value.trim();
+  if (!prompt) { toast('Prompt cannot be empty', 'error'); return; }
+  if (!S.token) { toast('Connect first', 'error'); return; }
+
+  const btn = document.getElementById('btn-query');
+  btn.innerHTML = '<span class="spin" style="border:2px solid white;border-top-color:transparent;border-radius:50%;width:13px;height:13px;display:inline-block;"></span> Sending…';
+  btn.disabled  = true;
+  document.getElementById('resp-card').classList.add('hidden');
+  document.getElementById('resp-error').classList.add('hidden');
+
+  try {
+    const body = { prompt };
+    if (sys) body.system_prompt = sys;
+
+    const res  = await fetch('/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const d = data.detail;
+      const msg = typeof d === 'object'
+        ? `${d.error || 'Error'}\n\nReason: ${d.reason || ''}\n\n${(d.violations || []).join('\n')}`
+        : (d || 'Request failed');
+      document.getElementById('resp-error-text').textContent = msg;
+      document.getElementById('resp-error').classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('resp-text').textContent = data.response;
+
+    const badges = document.getElementById('resp-badges');
+    badges.innerHTML = data.sanitized
+      ? `<span class="badge badge-amber">⚠ Sanitized</span>`
+      : `<span class="badge badge-green">✓ Clean</span>`;
+
+    const piiIn  = (data.pii_redacted?.input  || []).join(', ') || '—';
+    const piiOut = (data.pii_redacted?.output || []).join(', ') || '—';
+    document.getElementById('resp-meta').innerHTML = `
+      <div>request_id: ${data.request_id}</div>
+      ${data.policy_notes ? `<div style="color:#b45309">policy_notes: ${data.policy_notes}</div>` : ''}
+      <div>pii_redacted → input: ${piiIn} · output: ${piiOut}</div>
+    `;
+
+    document.getElementById('resp-card').classList.remove('hidden');
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = 'Send';
+    btn.disabled  = false;
+  }
+}
+
+function clearQuery() {
+  document.getElementById('inp-prompt').value = '';
+  document.getElementById('inp-systemprompt').value = '';
+  document.getElementById('resp-card').classList.add('hidden');
+  document.getElementById('resp-error').classList.add('hidden');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('inp-prompt').addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitQuery();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+async function loadAudit() {
+  if (!S.token) return;
+  const filter = document.getElementById('audit-filter').value;
+  document.getElementById('audit-state').textContent = 'Loading…';
+  document.getElementById('audit-state').classList.remove('hidden');
+  document.getElementById('audit-table').classList.add('hidden');
+
+  try {
+    const qs  = filter ? `&event_type=${filter}` : '';
+    const res = await fetch(`/audit?limit=100${qs}`, { headers: { Authorization: `Bearer ${S.token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+
+    const events = data.events || [];
+    if (!events.length) {
+      document.getElementById('audit-state').textContent = 'No events found.';
+      return;
+    }
+
+    const outcomeStyle = o => ({
+      allowed: 'color:#16a34a;font-weight:600',
+      denied:  'color:#dc2626;font-weight:600',
+      error:   'color:#d97706;font-weight:600',
+    }[o] || '');
+
+    const eventStyle = t => (t.includes('violation') || t.includes('denial'))
+      ? 'color:#dc2626' : t === 'pii_redacted' ? 'color:#b45309' : '';
+
+    const tbody = document.getElementById('audit-body');
+    tbody.innerHTML = '';
+    events.forEach(e => {
+      const ts   = new Date(e.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' });
+      const viol = (e.policy_violations || []).length;
+      const row  = document.createElement('tr');
+      row.style.cursor = 'default';
+      row.innerHTML = `
+        <td class="px-5 py-3 font-mono" style="color:#94a3b8;white-space:nowrap">${ts}</td>
+        <td class="px-5 py-3 font-mono" style="${eventStyle(e.event_type)}">${e.event_type}</td>
+        <td class="px-5 py-3">${e.user_id || '—'}</td>
+        <td class="px-5 py-3"><span class="badge badge-slate font-mono">${e.role || '—'}</span></td>
+        <td class="px-5 py-3 font-mono" style="color:#94a3b8">${e.action || '—'}</td>
+        <td class="px-5 py-3" style="${outcomeStyle(e.outcome)}">${e.outcome}</td>
+        <td class="px-5 py-3">${viol ? `<span class="badge badge-red">${viol} violation${viol > 1 ? 's' : ''}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    document.getElementById('audit-state').classList.add('hidden');
+    document.getElementById('audit-table').classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('audit-state').textContent = `Error: ${err.message}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Policy
+// ---------------------------------------------------------------------------
+async function loadPolicy() {
+  if (!S.token) return;
+  document.getElementById('policy-state').classList.remove('hidden');
+  document.getElementById('policy-content').classList.add('hidden');
+
+  try {
+    const res  = await fetch('/policy', { headers: { Authorization: `Bearer ${S.token}` } });
+    const d    = await res.json();
+    if (!res.ok) throw new Error(d.detail || 'Failed');
+
+    const statColors = [
+      { bg:'#f0f4ff', border:'#c7d2fe', label:'#4338ca', val:'#312e81' },
+      { bg:'#fff1f2', border:'#fecaca', label:'#dc2626', val:'#991b1b' },
+      { bg:'#fffbeb', border:'#fde68a', label:'#b45309', val:'#78350f' },
+      { bg:'#f0fdf4', border:'#bbf7d0', label:'#16a34a', val:'#14532d' },
+    ];
+    const stats = [
+      ['Injection Patterns', d.injection_patterns_count],
+      ['Secret Patterns',    d.secret_patterns_count],
+      ['PII Patterns',       d.pii_patterns_count],
+      ['Max Input',          d.max_input_length?.toLocaleString() + ' chars'],
+    ];
+
+    document.getElementById('policy-content').innerHTML = `
+      <div class="grid grid-cols-2 gap-3">
+        ${stats.map((s, i) => `
+          <div class="stat-card" style="background:${statColors[i].bg}; border:1.5px solid ${statColors[i].border}; border-radius:14px;">
+            <div class="text-2xl font-bold mb-0.5" style="color:${statColors[i].val}">${s[1]}</div>
+            <div class="text-xs font-semibold uppercase tracking-wide" style="color:${statColors[i].label}">${s[0]}</div>
+          </div>`).join('')}
+      </div>
+      <div class="card p-5">
+        <p class="section-label">Settings</p>
+        <div class="space-y-3">
+          ${prow('PII filter — input',  d.pii_filtering?.input  || 'redact', '#b45309')}
+          ${prow('PII filter — output', d.pii_filtering?.output || 'redact', '#b45309')}
+          ${prow('Output sanitization', d.output_sanitization,  '#16a34a')}
+          ${prow('Audit all queries',   d.audit_all_queries ? 'yes' : 'no', '#16a34a')}
+          ${prow('Proxy support',       'HTTP_PROXY / LLM_HTTP_PROXY', '#6366f1')}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('policy-state').classList.add('hidden');
+    document.getElementById('policy-content').classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('policy-state').textContent = `Error: ${err.message}`;
+  }
+}
+
+function prow(label, value, color) {
+  return `<div class="flex items-center justify-between">
+    <span class="text-sm text-slate-500">${label}</span>
+    <span class="text-xs font-mono font-semibold" style="color:${color}">${value}</span>
+  </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// RBAC Roles
+// ---------------------------------------------------------------------------
+async function loadRoles() {
+  if (!S.token) return;
+  document.getElementById('roles-state').classList.remove('hidden');
+  document.getElementById('roles-content').classList.add('hidden');
+
+  try {
+    const res  = await fetch('/rbac/roles', { headers: { Authorization: `Bearer ${S.token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+
+    const roleStyle = {
+      agent:         { bg:'#eff6ff', border:'#bfdbfe', heading:'#1d4ed8' },
+      developer:     { bg:'#f5f3ff', border:'#ddd6fe', heading:'#7c3aed' },
+      auditor:       { bg:'#fffbeb', border:'#fde68a', heading:'#b45309' },
+      administrator: { bg:'#fff1f2', border:'#fecaca', heading:'#dc2626' },
+    };
+
+    const content = document.getElementById('roles-content');
+    content.innerHTML = '';
+    Object.entries(data.roles).forEach(([role, perms]) => {
+      const s   = roleStyle[role] || { bg:'#f8fafc', border:'#e2e8f0', heading:'#374151' };
+      const div = document.createElement('div');
+      div.style.cssText = `background:${s.bg}; border:1.5px solid ${s.border}; border-radius:14px; padding:18px 20px;`;
+      div.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+          <span style="font-family:monospace; font-weight:700; font-size:14px; color:${s.heading}">${role}</span>
+          <span style="font-size:11px; color:#94a3b8; font-weight:500">${perms.length} permission${perms.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          ${perms.map(p => `<span class="perm-tag">${p}</span>`).join('')}
+        </div>
+      `;
+      content.appendChild(div);
+    });
+
+    document.getElementById('roles-state').classList.add('hidden');
+    content.classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('roles-state').textContent = `Error: ${err.message}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Config tab
+// ---------------------------------------------------------------------------
+let _presets = {};
+
+async function loadConfig() {
+  if (!S.token) return;
+  document.getElementById('config-state').classList.remove('hidden');
+  document.getElementById('config-content').classList.add('hidden');
+
+  try {
+    const res  = await fetch('/config', { headers: { Authorization: `Bearer ${S.token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+
+    _presets = data.provider_presets || {};
+    const llm    = data.config?.llm    || {};
+    const policy = data.config?.policy || {};
+    const server = data.config?.server || {};
+
+    // LLM fields
+    document.getElementById('cfg-provider').value    = llm.provider    || 'custom';
+    document.getElementById('cfg-api-url').value     = llm.api_url     || '';
+    document.getElementById('cfg-api-key').value     = llm.api_key     || '';  // masked by server
+    document.getElementById('cfg-model').value       = llm.model       || '';
+    document.getElementById('cfg-max-tokens').value  = llm.max_tokens  || 2048;
+    document.getElementById('cfg-timeout').value     = llm.timeout_seconds || 30;
+
+    // Mode badge
+    const isMock = !llm.api_url?.trim();
+    const badge = document.getElementById('cfg-mode-badge');
+    badge.textContent = isMock ? 'mock mode' : 'live mode';
+    badge.className   = 'badge ' + (isMock ? 'badge-amber' : 'badge-green');
+
+    // Policy toggles
+    document.getElementById('cfg-pii-input').checked      = policy.pii_filter_input        !== false;
+    document.getElementById('cfg-pii-output').checked     = policy.pii_filter_output       !== false;
+    document.getElementById('cfg-block-injection').checked = policy.block_prompt_injection  !== false;
+    document.getElementById('cfg-block-secrets').checked  = policy.block_secret_exfiltration !== false;
+
+    // Server info
+    document.getElementById('cfg-server-info').innerHTML = Object.entries(server)
+      .map(([k, v]) => prow(k, v || '—', '#6366f1'))
+      .join('');
+
+    document.getElementById('config-state').classList.add('hidden');
+    document.getElementById('config-content').classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('config-state').textContent = `Error: ${err.message}`;
+  }
+}
+
+function applyPreset() {
+  const key = document.getElementById('cfg-provider').value;
+  const p   = _presets[key];
+  if (!p) return;
+  if (p.api_url !== undefined) document.getElementById('cfg-api-url').value = p.api_url;
+  if (p.model   !== undefined) document.getElementById('cfg-model').value   = p.model;
+}
+
+function toggleApiKeyVis() {
+  const inp = document.getElementById('cfg-api-key');
+  inp.type  = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function saveLLMConfig() {
+  const btn = document.getElementById('btn-save-llm');
+  btn.innerHTML = '<span class="spin" style="border:2px solid white;border-top-color:transparent;border-radius:50%;width:13px;height:13px;display:inline-block;"></span> Saving…';
+  btn.disabled  = true;
+
+  const updates = {
+    provider:        document.getElementById('cfg-provider').value,
+    api_url:         document.getElementById('cfg-api-url').value.trim(),
+    api_key:         document.getElementById('cfg-api-key').value,  // server ignores masked sentinel
+    model:           document.getElementById('cfg-model').value.trim(),
+    max_tokens:      parseInt(document.getElementById('cfg-max-tokens').value) || 2048,
+    timeout_seconds: parseInt(document.getElementById('cfg-timeout').value)    || 30,
+  };
+
+  try {
+    const res  = await fetch('/config/llm', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` },
+      body:    JSON.stringify({ updates }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Save failed');
+
+    toast('LLM config saved', 'success');
+    await loadConfig();  // refresh to show masked key + updated mode badge
+    // Refresh health banner
+    await checkHealth();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = 'Save';
+    btn.disabled  = false;
+  }
+}
+
+async function savePolicyConfig() {
+  const updates = {
+    pii_filter_input:           document.getElementById('cfg-pii-input').checked,
+    pii_filter_output:          document.getElementById('cfg-pii-output').checked,
+    block_prompt_injection:     document.getElementById('cfg-block-injection').checked,
+    block_secret_exfiltration:  document.getElementById('cfg-block-secrets').checked,
+  };
+  try {
+    const res  = await fetch('/config/policy', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` },
+      body:    JSON.stringify({ updates }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Save failed');
+    toast('Policy saved', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function testConnection() {
+  const btn = document.getElementById('btn-test-llm');
+  const box = document.getElementById('test-result');
+  btn.innerHTML = '<span class="spin" style="border:2px solid #64748b;border-top-color:transparent;border-radius:50%;width:13px;height:13px;display:inline-block;"></span> Testing…';
+  btn.disabled  = true;
+  box.classList.add('hidden');
+
+  try {
+    const res  = await fetch('/config/test', {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${S.token}` },
+    });
+    const data = await res.json();
+    box.style.cssText = data.success
+      ? 'display:block; background:#f0fdf4; border:1.5px solid #bbf7d0; color:#15803d; border-radius:10px; padding:12px 14px; font-size:12.5px; font-family:monospace;'
+      : 'display:block; background:#fff1f2; border:1.5px solid #fecaca; color:#dc2626; border-radius:10px; padding:12px 14px; font-size:12.5px; font-family:monospace;';
+    box.textContent = `[${data.mode}] ${data.message}`;
+    box.classList.remove('hidden');
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = 'Test connection';
+    btn.disabled  = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Provider help modal
+// ---------------------------------------------------------------------------
+function showProviderHelp() {
+  document.getElementById('provider-modal').classList.remove('hidden');
+}
+document.getElementById('provider-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.add('hidden');
+});
+
+// ---------------------------------------------------------------------------
+// On load — check health and show mock banner if needed
+// ---------------------------------------------------------------------------
+async function checkHealth() {
+  try {
+    const res  = await fetch('/health');
+    const data = await res.json();
+    if (data.llm_mode === 'mock') {
+      document.getElementById('mock-banner').classList.remove('hidden');
+    }
+  } catch (_) { /* server not yet up */ }
+}
+
+// Init
+switchTab('connect');
+checkHealth();
+</script>
+</body>
+</html>

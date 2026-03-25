@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clawsec-config
+  namespace: clawsec
+  labels:
+    app.kubernetes.io/name: clawsec
+    app.kubernetes.io/component: config
+data:
+  OTLP_ENDPOINT: "http://otel-collector:4317"
+  LLM_MODEL: "gpt-4"
+  LLM_MAX_TOKENS: "2048"
+  DATABASE_URL: "sqlite:///./data/clawsec_audit.db"
+  ALLOWED_ORIGINS: "http://localhost:3000"

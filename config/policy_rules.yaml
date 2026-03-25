@@ -1,0 +1,83 @@
+input_validation:
+  max_length: 32768
+  min_length: 1
+
+  prompt_injection:
+    enabled: true
+    action: block
+    patterns:
+      - description: "Ignore previous instructions"
+        regex: "ignore\\s+(all\\s+)?(previous|prior|above)\\s+(instructions?|prompts?|rules?)"
+      - description: "Disregard previous instructions"
+        regex: "disregard\\s+(all\\s+)?(previous|prior|above)\\s+(instructions?|prompts?|rules?)"
+      - description: "Forget previous instructions / training"
+        regex: "forget\\s+(all\\s+)?(previous|prior|above|your)\\s+(instructions?|prompts?|rules?|training)"
+      - description: "Role override attempt"
+        regex: "you\\s+are\\s+now\\s+(a\\s+)?"
+      - description: "New system prompt injection"
+        regex: "new\\s+(system\\s+)?prompt\\s*[:=]"
+      - description: "System XML tag injection"
+        regex: "<\\s*system\\s*>"
+      - description: "Llama-style instruction injection"
+        regex: "\\[INST\\]"
+      - description: "Act-as role override"
+        regex: "act\\s+as\\s+(if\\s+you\\s+(are|were)\\s+)?"
+      - description: "Pretend-to-be override"
+        regex: "pretend\\s+(you\\s+are|to\\s+be)\\s+"
+      - description: "Jailbreak keywords"
+        regex: "jailbreak|DAN\\s*(mode)?"
+      - description: "Bypass safety filters"
+        regex: "bypass\\s+(your\\s+)?(safety|security|content|ethical)\\s+(filter|check|guard)"
+      - description: "Override safety policy"
+        regex: "override\\s+(your\\s+)?(safety|security|content|ethical)\\s+(setting|filter|policy)"
+
+  secret_detection:
+    enabled: true
+    action: block
+    patterns:
+      - description: "Password patterns"
+        regex: "(password|passwd|pwd)\\s*[:=]\\s*\\S+"
+      - description: "API key patterns"
+        regex: "(api[_-]?key|apikey)\\s*[:=]\\s*\\S+"
+      - description: "Secret key patterns"
+        regex: "(secret[_-]?key|secretkey)\\s*[:=]\\s*\\S+"
+      - description: "Access token patterns"
+        regex: "(access[_-]?token|accesstoken)\\s*[:=]\\s*\\S+"
+      - description: "Private key patterns"
+        regex: "(private[_-]?key)\\s*[:=]\\s*\\S+"
+      - description: "PEM private keys"
+        regex: "-----BEGIN\\s+(RSA\\s+)?PRIVATE\\s+KEY-----"
+      - description: "OpenAI API keys"
+        regex: "sk-[A-Za-z0-9]{32,}"
+      - description: "AWS Access Key ID"
+        regex: "AKIA[0-9A-Z]{16}"
+      - description: "GitHub personal access token"
+        regex: "ghp_[A-Za-z0-9]{36}"
+      - description: "Long base64 blobs (potential encoded secrets)"
+        regex: "[A-Za-z0-9+/]{40,}={0,2}"
+
+output_validation:
+  pii_scrubbing:
+    enabled: true
+    action: redact
+    patterns:
+      - type: SSN
+        regex: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+        replacement: "[SSN-REDACTED]"
+      - type: credit_card
+        regex: "\\b\\d{16}\\b"
+        replacement: "[CARD-REDACTED]"
+      - type: email
+        regex: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        replacement: "[EMAIL-REDACTED]"
+      - type: phone
+        regex: "(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}"
+        replacement: "[PHONE-REDACTED]"
+
+governance:
+  audit_all_queries: true
+  retain_audit_logs_days: 365
+  sensitive_data_handling: strict
+  output_retention_days: 30
+  immutable_audit_log: true
+  log_ip_addresses: true
