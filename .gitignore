@@ -23,6 +23,7 @@ wheels/
 venv/
 env/
 ENV/
+myenv/
 
 # Environment variables
 .env
